@@ -1,0 +1,229 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title></title>
+    <script src="//cdn.jsdelivr.net/pouchdb/6.2.0/pouchdb.min.js"></script>
+    <script>
+
+        arr = [];
+
+        function log(x) {
+            console.log(x);
+        }
+
+        var db = new PouchDB('db');
+        var remote = 'http://localhost:5984/db';
+        var remote2 = 'http://localhost:65310/db';
+
+        db.changes({
+            since: 'now',
+            live: true
+        }).on('change', updateUI);
+
+        updateUI();
+
+        function addAccount() {
+            fullName = document.getElementById("fullNameInput").value;
+            id = document.getElementById("idInput").value;
+            age = document.getElementById("ageInput").value;
+
+            var account = { '_id': new Date().toISOString() + "_", 'FullName': fullName, 'Id': id, 'Age': age }
+
+            db.put(account).then(function (result) {
+                log("Account added succesfully!");
+            }).catch(function (error) {
+                log(error);
+            });
+
+            document.getElementById("indexInput").value = account["_id"];
+        }
+
+        function newRev() {
+            str = "abcdefghijklmnopqrstuvwxyz1234567890";
+            rev = "";
+
+            for (i = 0; i < 32; i++)
+                rev += str.charAt(Math.floor((Math.random() * 31)));
+
+            return rev;
+        }
+
+        function sync() {
+            /*log('Syncing...');
+
+            var opts = { live: true };
+            db.sync(remote, opts);*/
+        }
+
+        function updateUI() {
+            db.allDocs({ include_docs: true, descending: true }, function (err, doc) {
+                redrawTodosUI(doc.rows);
+            });
+        }
+
+        function redrawTodosUI(accounts) {
+            var data = document.getElementById('data');
+            data.innerText = "";
+
+            for (i = 0; i < accounts.length; i++) {
+                for (var key in accounts[i]["doc"]) {
+                    data.innerHTML += key + ":" + accounts[i]["doc"][key] + ", ";
+                }
+                data.innerHTML += "<br/><hr/>";
+            }
+        }
+
+        function deleteAccount() {
+            id = document.getElementById('indexInput').value;
+            var account;
+            db.get(id, function (err, doc) {
+                if (err) {
+                    return console.log(err);
+                } else {
+                    db.remove(doc["_id"], doc["_rev"]);
+                }
+            });                       
+        }
+
+        function editAccount() {
+
+            name = document.getElementById("fullNameInput").value;
+            id = document.getElementById("idInput").value;
+            age = document.getElementById("ageInput").value;
+            
+            _id = document.getElementById('indexInput').value;
+            var account;
+            db.get(_id, function (err, doc) {
+                if (err) {
+                    return console.log(err);
+                } else {
+                    doc["FullName"] = name;
+                    doc["Id"] = id;
+                    doc["Age"] = age;
+                    db.put(doc);
+                }
+            });
+        }
+
+        function replicateTo() {
+            db.replicate.to(remote);
+            log("Replicate to");
+        }
+
+        function replicateFrom() {
+            db.replicate.from(remote);
+            log("Replicate from");
+        }
+
+        function replicateToMe() {
+            db.replicate.to(remote2);
+            log("Replicate to me");
+        }
+
+        function replicateFromMe() {
+            db.replicate.from(remote2);
+            log("Replicate from me");
+        }
+
+        function deleteDB() {
+            db.destroy();
+            data.innerText = "";
+        }
+
+        function post(message, method) {
+            var xhr = new XMLHttpRequest();
+            url = 'http://localhost:59652/db/addAccount';
+            xhr.open("POST", url, true);
+            xhr.setRequestHeader("Content-type", "text/plain");
+            
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    log(xhr.responseText);
+                }
+            };
+            xhr.send(message);
+        }
+    </script>
+
+    <style>
+        input[type=text], input[type=password] {
+            width: 350px;
+            height: 30px;
+            margin: 0px;
+            border-radius: 5px;
+            margin-top: 1px;
+            padding-left: 8px;
+            font-family: Arial;
+            font-size: 15px;
+            background-color: #F5F5F5;
+            font-weight: bold;
+            border-width: 1px;
+            border-color: #ECECEA;
+        }
+
+            input[type=text]:focus, input[type=password]:focus {
+                background-color: white;
+            }
+
+        input[type=button] {
+            width: 360px;
+            height: 50px;
+            background-color: #558C89;
+            color: white;
+            border-radius: 3px;
+            border-color: #74AFAD;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 15px;
+            font-family: "Comic Sans MS", cursive, sans-serif;
+            border-width: 0px;
+        }
+
+            input[type=button]:hover {
+                background-color: #4d7c7a;
+            }
+    </style>
+
+
+
+</head>
+<body>
+    <center>
+
+        <h1>PouchDB</h1>
+
+        <br /><br />
+        <input id="fullNameInput" placeholder="Full name" type="text" />
+        <br /><br />
+        <input id="idInput" placeholder="Id" type="text" />
+        <br /><br />
+        <input id="ageInput" placeholder="Age" type="text" />
+        <br /><br />
+        <input value="Add" type="button" onclick="addAccount()" />
+        <br /><br /><br /><br /><br />
+
+        <input value="Replicate To RavenDB" type="button" onclick="replicateToMe()" />
+        <input value="Replicate To CouchDB" type="button" onclick="replicateTo()" />
+        <br /><br />
+        <input value="Replicate From RavenDB" type="button" onclick="replicateFromMe()" />
+        <input value="Replicate From CouchDB" type="button" onclick="replicateFrom()" />
+        <br /><br />
+
+        <input id="indexInput" placeholder="_id" type="text" />
+        <br /><br />
+        <input value="Delete" type="button" onclick="deleteAccount()" />      
+        <br /><br />
+        <input value="Edit" type="button" onclick="editAccount()" />
+
+       
+        <br /><br />
+        <input value="Delete DB" type="button" onclick="deleteDB()" />
+
+
+        <p id="data" style="text-align:start;margin-left:500px;"></p>
+    </center>
+
+
+</body>
+</html>
